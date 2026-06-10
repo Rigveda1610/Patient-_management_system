@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Core rules enabling full clinical access for non-auth dev environment
+    match /patients/{patientId} {
+      allow read, write: if true;
+
+      match /documents/{documentId} {
+        allow read, write: if true;
+      }
+
+      match /history/{historyId} {
+        allow read, write: if true;
+      }
+    }
+
+    match /appointments/{appointmentId} {
+      allow read, write: if true;
+    }
+  }
+}

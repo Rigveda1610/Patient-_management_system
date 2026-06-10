@@ -1,0 +1,95 @@
+{
+  "entities": {
+    "Patient": {
+      "title": "Patient",
+      "description": "Represents a patient clinical record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier of the patient" },
+        "fullName": { "type": "string", "description": "Full legal name" },
+        "age": { "type": "integer", "description": "Age in years" },
+        "sex": { "type": "string", "enum": ["Male", "Female", "Other"] },
+        "dateOfBirth": { "type": "string", "format": "date" },
+        "mobileNumber": { "type": "string" },
+        "residence": { "type": "string", "description": "City or area of residence" },
+        "profession": { "type": "string" },
+        "primaryDiagnosis": { "type": "string" },
+        "finalDiagnosis": { "type": "string" },
+        "medicationDetails": { "type": "string" },
+        "lastVisitDate": { "type": "string", "format": "date" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "inactive"] }
+      },
+      "required": ["id", "fullName", "age", "sex", "mobileNumber", "primaryDiagnosis", "finalDiagnosis", "medicationDetails", "lastVisitDate", "createdAt", "updatedAt"]
+    },
+    "CaseDocument": {
+      "title": "CaseDocument",
+      "description": "A case document, photo, report, or prescription attached to a patient",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "patientId": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["case-paper", "medical-report", "prescription", "other"] },
+        "fileData": { "type": "string", "description": "Base64 compressed representation" },
+        "mimeType": { "type": "string" },
+        "uploadedAt": { "type": "string" },
+        "notes": { "type": "string" },
+        "sizeKb": { "type": "number" }
+      },
+      "required": ["id", "patientId", "name", "type", "fileData", "mimeType", "uploadedAt"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "An appointment scheduled for a patient visit or follow-up",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "patientId": { "type": "string" },
+        "patientName": { "type": "string" },
+        "patientMobile": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "time": { "type": "string" },
+        "type": { "type": "string", "enum": ["regular", "follow-up", "emergency"] },
+        "status": { "type": "string", "enum": ["scheduled", "checked-in", "completed", "cancelled"] },
+        "reason": { "type": "string" }
+      },
+      "required": ["id", "patientId", "patientName", "patientMobile", "date", "time", "type", "status"]
+    },
+    "HistoricalRecord": {
+      "title": "HistoricalRecord",
+      "description": "A progress note or custom historical clinical record from a patient's past visits",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "patientId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "primaryDiagnosis": { "type": "string" },
+        "finalDiagnosis": { "type": "string" },
+        "medications": { "type": "string" },
+        "notes": { "type": "string" },
+        "doctorName": { "type": "string" }
+      },
+      "required": ["id", "patientId", "date", "primaryDiagnosis", "finalDiagnosis", "medications", "doctorName"]
+    }
+  },
+  "firestore": {
+    "/patients/{patientId}": {
+      "schema": "Patient",
+      "description": "Main collection of patients"
+    },
+    "/patients/{patientId}/documents/{documentId}": {
+      "schema": "CaseDocument",
+      "description": "Subcollection of documents associated with a patient"
+    },
+    "/appointments/{appointmentId}": {
+      "schema": "Appointment",
+      "description": "Calendar bookings and follow-ups for a clinic"
+    },
+    "/patients/{patientId}/history/{historyId}": {
+      "schema": "HistoricalRecord",
+      "description": "Progress notes and visit history for a patient"
+    }
+  }
+}

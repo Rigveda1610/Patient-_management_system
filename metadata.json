@@ -1,0 +1,6 @@
+{
+  "name": "Patient Management System",
+  "description": "A secure patient clinical record system, appointments/follow-ups dashboard, case files and document storage, and analytics report platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
