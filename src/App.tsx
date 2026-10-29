@@ -10,7 +10,13 @@ import {
   updateAppointment, 
   deleteAppointment 
 } from './patientService';
-import { isFirebaseConfigured } from './firebase';
+import { auth, isFirebaseConfigured } from './firebase';
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+} from 'firebase/auth';
+import type { User } from 'firebase/auth';
 
 import DashboardStats from './components/DashboardStats';
 import PatientForm from './components/PatientForm';
@@ -25,7 +31,7 @@ import {
   ArrowUpDown, BadgeCheck, CloudOff, CloudLightning 
 } from 'lucide-react';
 
-export default function App() {
+function PatientDashboard() {
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<'dashboard' | 'patients' | 'appointments'>('dashboard');
   
@@ -554,5 +560,172 @@ export default function App() {
       </footer>
 
     </div>
+  );
+}
+export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
+
+  useEffect(() => {
+    if (!auth || !isFirebaseConfigured) {
+      setCheckingAuth(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      (currentUser) => {
+        setUser(currentUser);
+        setCheckingAuth(false);
+      },
+      () => {
+        setUser(null);
+        setCheckingAuth(false);
+      }
+    );
+
+    return unsubscribe;
+  }, []);
+
+  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError('');
+
+    if (!auth || !isFirebaseConfigured) {
+      setError('Firebase is not configured correctly.');
+      return;
+    }
+
+    setLoggingIn(true);
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+    } catch {
+      setError('Login failed. Check your email and password.');
+    } finally {
+      setLoggingIn(false);
+    }
+  }
+
+  async function handleLogout() {
+    if (auth) {
+      try {
+        await signOut(auth);
+      } catch {
+        setError('Unable to log out. Please try again.');
+      }
+    }
+  }
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
+        Checking login...
+      </div>
+    );
+  }
+
+  if (!auth || !isFirebaseConfigured) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 p-6 text-white">
+        <div className="max-w-md rounded-xl bg-slate-900 p-6 text-center">
+          <h1 className="text-xl font-bold text-red-400">Firebase unavailable</h1>
+          <p className="mt-2 text-slate-300">
+            The application cannot verify your login. Please contact the administrator.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 p-6">
+        <form
+          onSubmit={handleLogin}
+          className="w-full max-w-md space-y-5 rounded-2xl border border-slate-700 bg-slate-900 p-8 shadow-xl"
+        >
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-white">Doctor Login</h1>
+            <p className="mt-2 text-sm text-slate-400">Patient Management System</p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="doctor-email"
+              className="mb-2 block text-sm text-slate-200"
+            >
+              Email address
+            </label>
+            <input
+              id="doctor-email"
+              type="email"
+              autoComplete="username"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full rounded-lg border border-slate-600 bg-slate-800 p-3 text-white outline-none focus:border-blue-500"
+              placeholder="doctor@example.com"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="doctor-password"
+              className="mb-2 block text-sm text-slate-200"
+            >
+              Password
+            </label>
+            <input
+              id="doctor-password"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-lg border border-slate-600 bg-slate-800 p-3 text-white outline-none focus:border-blue-500"
+              placeholder="Enter your password"
+            />
+          </div>
+
+          {error && (
+            <p role="alert" className="text-sm text-red-400">
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={loggingIn}
+            className="w-full rounded-lg bg-blue-600 p-3 font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
+          >
+            {loggingIn ? 'Signing in...' : 'Sign in'}
+          </button>
+
+          <p className="text-center text-xs text-slate-400">
+            Access is restricted to authorized accounts.
+          </p>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-end gap-3 border-b border-slate-700 bg-slate-900 px-4 py-3 text-white">
+        <span className="text-sm">{user.email}</span>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="rounded-lg bg-slate-700 px-4 py-2 text-sm hover:bg-slate-600"
+        >
+          Log out
+        </button>
+      </div>
+      <PatientDashboard />
+    </>
   );
 }
