@@ -3,13 +3,18 @@ export interface CaseDocument {
   patientId: string;
   name: string;
   type: 'case-paper' | 'medical-report' | 'prescription' | 'other';
-  fileData: string; // Base64 encoded compressed image or document representation
+
+  // Legacy support for existing Base64 documents
+  fileData?: string;
+
+  // Firebase Storage information for new documents
+  storagePath?: string;
+
   mimeType: string;
   uploadedAt: string;
   notes?: string;
   sizeKb: number;
 }
-
 export interface Appointment {
   id: string;
   patientId: string;
@@ -50,6 +55,11 @@ export interface Patient {
   updatedAt: string;
   status: 'active' | 'inactive';
   testCasePhoto?: string; // Base64 encoded test case image photo
+    treatmentStatus?: 
+    | "Treatment Completed"
+    | "Satisfied"
+    | "Not Satisfied";
+
 }
 
 export interface PatientStats {

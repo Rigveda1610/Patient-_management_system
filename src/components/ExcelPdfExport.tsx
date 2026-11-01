@@ -27,7 +27,8 @@ export default function ExcelPdfExport({ patients, stats }: ExcelPdfExportProps)
       'Final Diagnosis',
       'Medications',
       'Last Visit Date',
-      'Status'
+      'Status',
+      'Treatment Status'
     ];
 
     // Map lines, escape quotes
@@ -45,7 +46,8 @@ export default function ExcelPdfExport({ patients, stats }: ExcelPdfExportProps)
         `"${p.finalDiagnosis.replace(/"/g, '""')}"`,
         `"${p.medicationDetails.replace(/"/g, '""')}"`,
         p.lastVisitDate,
-        p.status
+        p.status,
+        `"${(p.treatmentStatus || 'Not Recorded').replace(/"/g, '""')}"`
       ].join(',');
     });
 
@@ -77,6 +79,7 @@ export default function ExcelPdfExport({ patients, stats }: ExcelPdfExportProps)
         <td style="padding: 10px; color: #e11d48; font-weight: bold;">${p.primaryDiagnosis}</td>
         <td style="padding: 10px; font-family: monospace; font-size: 11px; white-space: pre-wrap; color: #334155;">${p.medicationDetails}</td>
         <td style="padding: 10px; color: #0f172a; font-family: monospace;">${p.lastVisitDate}</td>
+        <td style="padding: 10px; color: #0f172a; font-family: monospace;">${p.treatmentStatus || 'Not Recorded'}</td>
       </tr>
     `).join('');
 
@@ -129,6 +132,7 @@ export default function ExcelPdfExport({ patients, stats }: ExcelPdfExportProps)
                 <th style="width: 18%">Diagnosis</th>
                 <th style="width: 20%">Active Medication Therapy</th>
                 <th style="width: 10%">Last Visit</th>
+                <th style="width: 12%">Treatment Status</th>
               </tr>
             </thead>
             <tbody>

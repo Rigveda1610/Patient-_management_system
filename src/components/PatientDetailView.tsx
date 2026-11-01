@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Patient, CaseDocument, HistoricalRecord } from '../types';
-import { 
-  getDocuments, 
-  addDocument, 
-  deleteDocument, 
-  getHistory, 
-  addHistoryRecord 
+import {
+  getDocuments,
+  addDocument,
+  deleteDocument,
+  getHistory,
+  addHistoryRecord,
+  uploadDocumentFile,
+  getDocumentBlob,
+  deleteDocumentFile
 } from '../patientService';
 import { 
   Trash2, Upload, FileText, Calendar, Plus, 
@@ -41,6 +44,7 @@ export default function PatientDetailView({ patient, onBack, onEdit }: PatientDe
 
   // Document full screen visualizer
   const [viewingDoc, setViewingDoc] = useState<CaseDocument | null>(null);
+  const [viewingDocUrl, setViewingDocUrl] = useState<string | null>(null);
 
   // Load patient specific documents and history logs
   useEffect(() => {
@@ -64,114 +68,107 @@ export default function PatientDetailView({ patient, onBack, onEdit }: PatientDe
     setUploadNotes('');
   }, [patient]);
 
-  // Handle client-side canvas-based image downscaling & compression
-  const compressAndProcessFile = (file: File) => {
+  // Upload selected file to Firebase Storage
+  const compressAndProcessFile = async (file: File) => {
     if (!file) return;
-    
+
     setIsUploading(true);
     setUploadError('');
 
-    const sizeKb = Math.round(file.size / 1024);
-    
-    // If it is not an image, we can read as plain text or standard dataURI, but for images we downscale!
-    const isImage = file.type.startsWith('image/');
-
-    const reader = new FileReader();
-
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-
-      if (isImage) {
-        const img = new Image();
-        img.onload = () => {
-          // Canvas compression setup
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-
-          // Downscale to max 1000px dimension
-          const MAX_DIM = 1000;
-          if (width > MAX_DIM || height > MAX_DIM) {
-            if (width > height) {
-              height = Math.round((height * MAX_DIM) / width);
-              width = MAX_DIM;
-            } else {
-              width = Math.round((width * MAX_DIM) / height);
-              height = MAX_DIM;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            // Compress heavily: JPG 0.65 quality (results in highly readable ~60KB image)
-            const compressedUrl = canvas.toDataURL('image/jpeg', 0.65);
-            
-            saveProcessedDocument(file.name, file.type, compressedUrl, sizeKb);
-          } else {
-            // failed canvas drawing, save source
-            saveProcessedDocument(file.name, file.type, dataUrl, sizeKb);
-          }
-        };
-        img.onerror = () => {
-          setUploadError('Failed to decode image scan file.');
-          setIsUploading(false);
-        };
-        img.src = dataUrl;
-      } else {
-        // PDF or other documents (save directly)
-        if (sizeKb > 1400) {
-          setUploadError('Attached file exceeds 1.4MB. Please upload a smaller medical file or compressed image.');
-          setIsUploading(false);
-          return;
-        }
-        saveProcessedDocument(file.name, file.type, dataUrl, sizeKb);
-      }
-    };
-
-    reader.onerror = () => {
-      setUploadError('Error reading scan files.');
+    try {
+      await saveProcessedDocument(file);
+    } catch (error) {
+      console.error('Document upload failed:', error);
+      setUploadError(
+        error instanceof Error ? error.message : 'Document upload failed.'
+      );
       setIsUploading(false);
-    };
-
-    reader.readAsDataURL(file);
+    }
   };
 
-  const saveProcessedDocument = async (name: string, mimeType: string, fileData: string, rawSizeKb: number) => {
-    // estimate compressed length approximately
-    const compSizeKb = Math.round((fileData.length * 3) / 4 / 1024);
+  // Save the actual file in Storage and metadata in Firestore
+  const saveProcessedDocument = async (file: File) => {
+    const docId = `doc_${Date.now()}`;
+    const sizeKb = Math.round(file.size / 1024);
+
+    const storagePath = await uploadDocumentFile(
+      patient.id,
+      docId,
+      file
+    );
 
     const docObj: CaseDocument = {
-      id: `doc_${Date.now()}`,
+      id: docId,
       patientId: patient.id,
-      name: name,
+      name: file.name,
       type: uploadType,
-      fileData,
-      mimeType,
+      storagePath,
+      mimeType: file.type,
       uploadedAt: new Date().toISOString().split('T')[0],
       notes: uploadNotes.trim() || 'No active notes uploaded.',
-      sizeKb: compSizeKb || rawSizeKb
+      sizeKb
     };
 
-    await addDocument(docObj);
-    
-    // reload documents
+    try {
+      await addDocument(docObj);
+    } catch (error) {
+      // Avoid leaving an unreferenced file in Storage if metadata save fails.
+      await deleteDocumentFile(storagePath).catch((deleteError) => {
+        console.error('Could not clean up uploaded file:', deleteError);
+      });
+      throw error;
+    }
+
     const updatedDocs = await getDocuments(patient.id);
     setDocuments(updatedDocs);
-    
-    // Reset states
     setUploadNotes('');
     setIsUploading(false);
   };
 
+  // Open a document from Firebase Storage (or a legacy Base64 record)
+  const handleViewDoc = async (doc: CaseDocument) => {
+    setViewingDoc(doc);
+    setViewingDocUrl(null);
+
+    try {
+      if (doc.storagePath) {
+        const blob = await getDocumentBlob(doc.storagePath);
+        setViewingDocUrl(URL.createObjectURL(blob));
+      } else if (doc.fileData) {
+        setViewingDocUrl(doc.fileData);
+      } else {
+        throw new Error('Document file is unavailable.');
+      }
+    } catch (error) {
+      console.error('Unable to open document:', error);
+      setViewingDoc(null);
+      setUploadError(
+        error instanceof Error ? error.message : 'Unable to open document.'
+      );
+    }
+  };
+
+  // Delete the file from Storage and its metadata from Firestore
   const handleDeleteDoc = async (docId: string) => {
-    if (confirm('Are you sure you want to permanently delete this attached document?')) {
+    if (!confirm('Are you sure you want to permanently delete this attached document?')) {
+      return;
+    }
+
+    try {
+      const documentToDelete = documents.find(doc => doc.id === docId);
+
+      if (documentToDelete?.storagePath) {
+        await deleteDocumentFile(documentToDelete.storagePath);
+      }
+
       await deleteDocument(patient.id, docId);
       const updatedDocs = await getDocuments(patient.id);
       setDocuments(updatedDocs);
+    } catch (error) {
+      console.error('Document deletion failed:', error);
+      setUploadError(
+        error instanceof Error ? error.message : 'Document deletion failed.'
+      );
     }
   };
 
@@ -577,7 +574,7 @@ export default function PatientDetailView({ patient, onBack, onEdit }: PatientDe
             {/* List of attachments */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
               {documents.map((doc) => {
-                const isImg = doc.fileData.includes('base64') || doc.fileData.includes('image');
+                const isImg = doc.mimeType.startsWith('image/');
                 return (
                   <div key={doc.id} className="border border-slate-800 hover:border-slate-700 bg-slate-800/15 p-3 rounded-xl flex items-start justify-between gap-2 overflow-hidden transition-all">
                     <div className="flex items-start space-x-2.5 overflow-hidden">
@@ -600,7 +597,7 @@ export default function PatientDetailView({ patient, onBack, onEdit }: PatientDe
 
                     <div className="flex items-center space-x-1.5 shrink-0">
                       <button 
-                        onClick={() => setViewingDoc(doc)}
+                        onClick={() => handleViewDoc(doc)}
                         className="p-1 px-2 bg-slate-805 text-slate-300 rounded-lg hover:bg-slate-800 border border-slate-700 transition text-[10px] font-bold flex items-center space-x-1 cursor-pointer"
                         title="View Full Document Scan"
                       >
@@ -645,7 +642,11 @@ export default function PatientDetailView({ patient, onBack, onEdit }: PatientDe
               </div>
               <button 
                 type="button" 
-                onClick={() => setViewingDoc(null)} 
+                onClick={() => {
+                  if (viewingDocUrl?.startsWith('blob:')) URL.revokeObjectURL(viewingDocUrl);
+                  setViewingDocUrl(null);
+                  setViewingDoc(null);
+                }} 
                 className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -653,18 +654,29 @@ export default function PatientDetailView({ patient, onBack, onEdit }: PatientDe
             </div>
 
             <div className="p-6 bg-[#0c0d10] flex-1 flex items-center justify-center overflow-auto min-h-[350px]">
-              {viewingDoc.fileData.startsWith('data:image/') || viewingDoc.mimeType.startsWith('image/') ? (
-                <img 
-                  src={viewingDoc.fileData} 
-                  alt={viewingDoc.name} 
-                  referrerPolicy="no-referrer"
+              {!viewingDocUrl ? (
+                <p className="text-sm text-slate-400">Loading document...</p>
+              ) : viewingDoc.mimeType.startsWith('image/') ? (
+                <img
+                  src={viewingDocUrl}
+                  alt={viewingDoc.name}
                   className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-lg border border-slate-800 bg-[#1a1d23]"
+                />
+              ) : viewingDoc.mimeType === 'application/pdf' ? (
+                <iframe
+                  src={viewingDocUrl}
+                  title={viewingDoc.name}
+                  className="w-full h-[65vh] rounded-lg border border-slate-700 bg-white"
                 />
               ) : (
                 <div className="bg-[#1a1d23] p-6 rounded-xl border border-slate-800 text-center space-y-3">
                   <FileText className="w-12 h-12 text-slate-600 mx-auto" />
-                  <p className="text-xs text-slate-300 font-bold">Pre-loaded PDF/Document Scan</p>
-                  <p className="text-[10px] text-slate-500 max-w-xs">{viewingDoc.notes}</p>
+                  <p className="text-xs text-slate-300 font-bold">Preview is not available for this file type.</p>
+                  <a
+                    href={viewingDocUrl}
+                    download={viewingDoc.name}
+                    className="text-emerald-400 underline text-xs"
+                  >Download document</a>
                 </div>
               )}
             </div>

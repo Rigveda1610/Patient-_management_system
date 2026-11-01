@@ -10,7 +10,20 @@ import {
   where, 
   orderBy 
 } from 'firebase/firestore';
-import { db, isFirebaseConfigured, handleFirestoreError, OperationType } from './firebase';
+import {
+  db,
+  storage,
+  isFirebaseConfigured,
+  handleFirestoreError,
+  OperationType
+} from './firebase';
+
+import {
+  ref,
+  uploadBytes,
+  getBlob,
+  deleteObject
+} from 'firebase/storage';
 import { Patient, Appointment, CaseDocument, HistoricalRecord } from './types';
 import { generateMockPatients, generateMockAppointments, generateMockDocuments, generateMockHistory } from './mockData';
 
@@ -240,6 +253,73 @@ export async function addHistoryRecord(record: HistoricalRecord): Promise<void> 
 }
 
 // --- Documents / Clinical Attachments API Services ---
+
+// Upload actual medical documents to Firebase Storage
+// Upload actual medical documents to Firebase Storage
+export async function uploadDocumentFile(
+  patientId: string,
+  documentId: string,
+  file: File
+): Promise<string> {
+
+  if (!storage || !isFirebaseConfigured) {
+    throw new Error('Firebase Storage is not configured.');
+  }
+
+  const allowedTypes = [
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'image/webp'
+  ];
+
+  if (!allowedTypes.includes(file.type)) {
+    throw new Error('Only PDF, JPEG, PNG and WEBP files are allowed.');
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error('File size must be less than 10 MB.');
+  }
+
+  const storagePath = `patients/${patientId}/documents/${documentId}`;
+  const storageRef = ref(storage, storagePath);
+
+  await uploadBytes(storageRef, file, {
+    contentType: file.type
+  });
+
+  return storagePath;
+}
+
+
+// Retrieve a private document from Firebase Storage
+export async function getDocumentBlob(
+  storagePath: string
+): Promise<Blob> {
+
+  if (!storage) {
+    throw new Error('Firebase Storage is not configured.');
+  }
+
+  const storageRef = ref(storage, storagePath);
+
+  return await getBlob(storageRef, 10 * 1024 * 1024);
+}
+
+
+// Delete a document from Firebase Storage
+export async function deleteDocumentFile(
+  storagePath: string
+): Promise<void> {
+
+  if (!storage) {
+    throw new Error('Firebase Storage is not configured.');
+  }
+
+  const storageRef = ref(storage, storagePath);
+
+  await deleteObject(storageRef);
+}
 
 export async function getDocuments(patientId: string): Promise<CaseDocument[]> {
   if (isFirebaseConfigured && db) {

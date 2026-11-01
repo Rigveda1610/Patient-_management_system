@@ -22,6 +22,10 @@ export default function PatientForm({ patientToEdit, isOpen, onClose, onSave }: 
   const [medicationDetails, setMedicationDetails] = useState('');
   const [lastVisitDate, setLastVisitDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
+  const [treatmentStatus, setTreatmentStatus] = useState<
+  'Treatment Completed' | 'Satisfied' | 'Not Satisfied' | ''
+>('');
+
   const [testCasePhoto, setTestCasePhoto] = useState<string>('');
   const [isPhotoUploading, setIsPhotoUploading] = useState(false);
   
@@ -42,6 +46,8 @@ export default function PatientForm({ patientToEdit, isOpen, onClose, onSave }: 
       setMedicationDetails(patientToEdit.medicationDetails);
       setLastVisitDate(patientToEdit.lastVisitDate);
       setStatus(patientToEdit.status);
+      setTreatmentStatus(patientToEdit.treatmentStatus || '');
+      setTreatmentStatus(patientToEdit.treatmentStatus || '');
       setTestCasePhoto(patientToEdit.testCasePhoto || '');
     } else {
       // Clear for new patient
@@ -59,6 +65,7 @@ export default function PatientForm({ patientToEdit, isOpen, onClose, onSave }: 
       setMedicationDetails('');
       setLastVisitDate(new Date().toISOString().split('T')[0]);
       setStatus('active');
+      setTreatmentStatus('');
       setTestCasePhoto('');
     }
     setError(null);
@@ -178,7 +185,8 @@ export default function PatientForm({ patientToEdit, isOpen, onClose, onSave }: 
       createdAt: patientToEdit ? patientToEdit.createdAt : new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString().split('T')[0],
       status,
-      testCasePhoto: testCasePhoto || undefined
+      ...(treatmentStatus ? { treatmentStatus } : {}),
+      testCasePhoto: testCasePhoto || undefined,
     };
 
     onSave(compiled);
@@ -392,6 +400,53 @@ export default function PatientForm({ patientToEdit, isOpen, onClose, onSave }: 
                   </div>
                 </div>
               </div>
+              {/* TREATMENT STATUS */}
+<div className="space-y-1 mt-4">
+
+  <label className="text-xs font-bold text-slate-300">
+    Treatment Status
+  </label>
+
+  <div className="flex items-center flex-wrap gap-6 min-h-[38px]">
+
+    <label className="flex items-center space-x-2 text-sm text-slate-300 cursor-pointer">
+      <input
+        type="radio"
+        name="treatmentStatus"
+        value="Treatment Completed"
+        checked={treatmentStatus === 'Treatment Completed'}
+        onChange={() => setTreatmentStatus('Treatment Completed')}
+        className="text-emerald-500 focus:ring-emerald-500 bg-[#0c0d10] border-slate-700"
+      />
+      <span>Treatment Completed</span>
+    </label>
+
+    <label className="flex items-center space-x-2 text-sm text-slate-300 cursor-pointer">
+      <input
+        type="radio"
+        name="treatmentStatus"
+        value="Satisfied"
+        checked={treatmentStatus === 'Satisfied'}
+        onChange={() => setTreatmentStatus('Satisfied')}
+        className="text-emerald-500 focus:ring-emerald-500 bg-[#0c0d10] border-slate-700"
+      />
+      <span>Satisfied</span>
+    </label>
+
+    <label className="flex items-center space-x-2 text-sm text-slate-300 cursor-pointer">
+      <input
+        type="radio"
+        name="treatmentStatus"
+        value="Not Satisfied"
+        checked={treatmentStatus === 'Not Satisfied'}
+        onChange={() => setTreatmentStatus('Not Satisfied')}
+        className="text-emerald-500 focus:ring-emerald-500 bg-[#0c0d10] border-slate-700"
+      />
+      <span>Not Satisfied</span>
+    </label>
+
+  </div>
+</div>
 
             </div>
           </div>
